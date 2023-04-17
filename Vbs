@@ -1,0 +1,90 @@
+Option Explicit
+Dim WshShell, WshSysEnv, UserName, capitalizedString, userProfile, objFSO
+Set WshShell = CreateObject("WScript.Shell")
+Set WshSysEnv = WshShell.Environment("PROCESS")
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+
+UserName = WshSysEnv("USERNAME")
+capitalizedString = UCase(UserName)
+userProfile = WshSysEnv("USERPROFILE")
+
+If objFSO.FolderExists("C:\Source\CP\" & UserName) = False Then
+    WScript.Quit
+End If
+
+If UserName <> capitalizedString And UserName <> UserName Then
+    WScript.Quit
+End If
+
+WScript.Echo ""
+WScript.Echo "Configuring your profile...Please wait"
+WScript.Echo ""
+WScript.Echo "               ### IMPORTANT! ### DO NOT CLOSE THIS WINDOW!"
+WScript.Echo ""
+
+RestoreProfile
+
+Sub RestoreProfile
+    Dim stage(13), i
+    stage(1) = Array("C:\Source\CP\" & UserName & "\CustomDic", userProfile & "\Application Data\Microsoft\Proof", "*.*")
+    stage(3) = Array("C:\Source\CP\" & UserName & "\Documents", userProfile & "\Documents", "*.*")
+    stage(4) = Array("C:\Source\CP\" & UserName & "\Favorites", userProfile & "\Favorites", "*.*")
+    stage(7) = Array("C:\Source\CP\" & UserName & "\ChromeBookmarks", userProfile & "\AppData\Local\Google\Chrome\User Data\Default", "*.*")
+    stage(8) = Array("C:\Source\CP\" & UserName & "\Signatures", userProfile & "\AppData\Roaming\Microsoft\Signatures", "*.*")
+    stage(9) = Array("C:\Source\CP\" & UserName & "\Templates", userProfile & "\AppData\Roaming\Microsoft\Templates", "*.*")
+    stage(10) = Array("C:\Source\CP\" & UserName & "\Music", userProfile & "\Music", "*.*")
+    stage(12) = Array("C:\Source\CP\" & UserName & "\Videos", userProfile & "\Videos", "*.*")
+
+    For i = 1 To 13
+        If Not IsEmpty(stage(i)) Then
+            WScript.Echo "Stage " & i & "..."
+            RoboCopy stage(i)(0), stage(i)(1), stage(i)(2)
+        End If
+    Next
+
+    Dim windowsVersion
+    windowsVersion = WshShell.RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\CurrentVersion")
+
+    If windowsVersion = "6.1" Then ' Windows 7
+        WshShell.Run "StikyNot.exe", 0, True
+        WScript.Sleep 2000
+        WshShell.Run "taskkill /IM StikyNot.exe", 0, True
+        WScript.Sleep 2000
+        RoboCopy "C:\Source\CP\" & UserName & "\StickyNotes", userProfile & "\AppData\Roaming\Microsoft\Sticky Notes", "*.*"
+    ElseIf windowsVersion = "10.0" Then ' Windows 10
+        WshShell.Run "explorer shell:AppsFolder\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App", 0, True
+        WScript.Sleep 3000
+        WshShell.Run "taskkill /T /F /IM Microsoft.StickyNotes.exe", 0, True
+        WScript.Sleep 3000
+        RoboCopy "C:\Source\CP\" & UserName & "\StickyNotes", userProfile & "\AppData\Local\Packages\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\LocalState", "plum.sqlite"
+        If objFSO.FileExists("C:\Source\CP\" & UserName & "\StickyNotes\StickyNotes.snt") Then
+            objFSO.CreateFolder userProfile & "\AppData\Local\Packages\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\LocalState\Legacy"
+            objFSO.CopyFile "C:\Source\CP\" & UserName & "\StickyNotes\StickyNotes.snt", userProfile & "\AppData\Local\Packages\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\LocalState\Legacy\ThresholdNotes.snt"
+        End If
+    End If
+End Sub
+
+WScript.Echo "Finishing up..."
+
+' ---- Delete the profile backup ----
+objFSO.DeleteFolder "C:\Source\CP\" & UserName, True
+
+' ---- Delete this file when done ----
+objFSO.DeleteFile WScript.ScriptFullName, True
+
+WScript.Sleep 5000
+
+' ========== Functions ==========
+
+Sub RoboCopy(source, destination, files)
+    Dim robocopyCmd
+    robocopyCmd = "robocopy """ & source & """ """ & destination & """ """ & files & """ /S /E /Z /XO /R:1 /W:1 /NP /DST"
+    WshShell.Run robocopyCmd, 0, True
+End Sub
+
+Function IsEmpty(arr)
+    On Error Resume Next
+    IsEmpty = UBound(arr) < LBound(arr)
+    On Error GoTo 0
+End Function
+
